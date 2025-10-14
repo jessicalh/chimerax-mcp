@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chimerax-mcp-server"
+version = "1.0.0"
+description = "Model Context Protocol server for UCSF ChimeraX molecular visualization"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "ChimeraX MCP", email = "user@example.com"}
+]
+keywords = ["mcp", "chimerax", "molecular-visualization", "structural-biology", "ai"]
+
+dependencies = [
+    "mcp>=0.1.0",
+    "requests>=2.31.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/chimerax-mcp-server"
+Documentation = "https://www.cgl.ucsf.edu/chimerax/docs/user/index.html"
+
+[project.scripts]
+chimerax-mcp-server = "chimerax_mcp_server:main"
+
+[tool.setuptools]
+py-modules = ["chimerax_mcp_server"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
