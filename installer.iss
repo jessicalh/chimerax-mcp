@@ -77,6 +77,45 @@ Filename: "{app}\README.md"; Description: "View README"; \
 var
   PythonFound: Boolean;
   InstallForAllUsers: Boolean;
+  ChimeraXPath: String;
+  ChimeraXPort: String;
+
+function EscapeBackslashes(const S: String): String;
+var
+  I: Integer;
+begin
+  Result := '';
+  for I := 1 to Length(S) do
+  begin
+    if S[I] = '\' then
+      Result := Result + '\\'
+    else
+      Result := Result + S[I];
+  end;
+end;
+
+function FindChimeraX(): String;
+var
+  Paths: array[0..3] of String;
+  I: Integer;
+begin
+  Result := '';
+
+  // Common ChimeraX installation locations
+  Paths[0] := 'C:\Program Files\ChimeraX\bin\ChimeraX.exe';
+  Paths[1] := 'C:\Program Files (x86)\ChimeraX\bin\ChimeraX.exe';
+  Paths[2] := ExpandConstant('{localappdata}\UCSF ChimeraX\bin\ChimeraX.exe');
+  Paths[3] := 'C:\Program Files\UCSF ChimeraX\bin\ChimeraX.exe';
+
+  for I := 0 to 3 do
+  begin
+    if FileExists(Paths[I]) then
+    begin
+      Result := Paths[I];
+      Exit;
+    end;
+  end;
+end;
 
 function InitializeSetup(): Boolean;
 var
@@ -93,31 +132,54 @@ begin
   // Default to all users if running as admin, current user otherwise
   InstallForAllUsers := IsAdmin;
 
+  // Find ChimeraX
+  ChimeraXPath := FindChimeraX();
+  ChimeraXPort := '50960';  // Default port
+
   Result := True; // Continue installation even if Python not found
 end;
 
 procedure InitializeWizard();
 var
-  Page: TInputOptionWizardPage;
+  ModePage: TInputOptionWizardPage;
+  ChimeraXPage: TInputQueryWizardPage;
 begin
   // Create custom page for installation mode selection
-  Page := CreateInputOptionPage(wpLicense,
+  ModePage := CreateInputOptionPage(wpLicense,
     'Installation Mode', 'Choose installation scope',
     'Select whether to install for all users or just for you.',
     False, False);
 
   // Add options
-  Page.Add('Install for all users (requires administrator privileges)');
-  Page.Add('Install for current user only (no admin required)');
+  ModePage.Add('Install for all users (requires administrator privileges)');
+  ModePage.Add('Install for current user only (no admin required)');
 
   // Set default based on admin status
   if IsAdmin then
-    Page.Values[0] := True
+    ModePage.Values[0] := True
   else
-    Page.Values[1] := True;
+    ModePage.Values[1] := True;
 
   // Store for later use
-  Page.Tag := 1; // Mark page as created
+  ModePage.Tag := 1; // Mark page as created
+
+  // Create ChimeraX configuration page
+  ChimeraXPage := CreateInputQueryPage(ModePage.ID,
+    'ChimeraX Configuration', 'Configure ChimeraX connection',
+    'The MCP server needs to know where ChimeraX is installed and which port to use.');
+
+  ChimeraXPage.Add('ChimeraX executable path:', False);
+  ChimeraXPage.Add('REST server port:', False);
+
+  // Set defaults
+  if ChimeraXPath <> '' then
+    ChimeraXPage.Values[0] := ChimeraXPath
+  else
+    ChimeraXPage.Values[0] := 'C:\Program Files\ChimeraX\bin\ChimeraX.exe';
+
+  ChimeraXPage.Values[1] := ChimeraXPort;
+
+  ChimeraXPage.Tag := 2; // Mark page
 end;
 
 function GetDefaultInstallDir(Param: String): String;
@@ -149,10 +211,11 @@ function NextButtonClick(CurPageID: Integer): Boolean;
 var
   Page: TWizardPage;
   InputPage: TInputOptionWizardPage;
+  QueryPage: TInputQueryWizardPage;
 begin
   Result := True;
 
-  // Check if this is our custom page
+  // Check if this is installation mode page
   if CurPageID = wpLicense + 1 then
   begin
     Page := PageFromID(CurPageID);
@@ -179,25 +242,59 @@ begin
       end;
     end;
   end;
+
+  // Check if this is ChimeraX config page
+  Page := PageFromID(CurPageID);
+  if (Page <> nil) and (Page.Tag = 2) then
+  begin
+    QueryPage := TInputQueryWizardPage(Page);
+    ChimeraXPath := QueryPage.Values[0];
+    ChimeraXPort := QueryPage.Values[1];
+
+    // Validate ChimeraX path
+    if not FileExists(ChimeraXPath) then
+    begin
+      if MsgBox('ChimeraX executable not found at: ' + ChimeraXPath + #13#10 + #13#10 +
+                'Continue anyway? (You can configure it later)',
+                mbConfirmation, MB_YESNO) = IDNO then
+      begin
+        Result := False;
+      end;
+    end;
+  end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
-  PythonPath: String;
   ConfigScript: String;
   ExePath: String;
+  ConfigFile: String;
+  ConfigContent: String;
 begin
   if CurStep = ssPostInstall then
   begin
-    // Only try to update config if Python is available
+    // Update the chimerax_mcp_config.json with actual ChimeraX path and port
+    ConfigFile := ExpandConstant('{app}\chimerax_mcp_config.json');
+
+    // Escape backslashes for JSON
+    ConfigContent := '{' + #13#10 +
+      '  "chimerax_url": "http://127.0.0.1:' + ChimeraXPort + '",' + #13#10 +
+      '  "chimerax_port": ' + ChimeraXPort + ',' + #13#10 +
+      '  "timeout": 30,' + #13#10 +
+      '  "auto_start_chimerax": true,' + #13#10 +
+      '  "chimerax_path": "' + EscapeBackslashes(ChimeraXPath) + '"' + #13#10 +
+      '}' + #13#10;
+
+    SaveStringToFile(ConfigFile, ConfigContent, False);
+
+    // Only try to update Claude config if Python is available
     if PythonFound then
     begin
       ConfigScript := ExpandConstant('{app}\update_claude_config.py');
       ExePath := ExpandConstant('{app}\{#MyAppExeName}');
 
       // Try to run the config updater
-      // This is a backup method if the [Run] section fails
       if FileExists(ConfigScript) then
       begin
         Exec('python', '"' + ConfigScript + '" "' + ExePath + '"', '',
