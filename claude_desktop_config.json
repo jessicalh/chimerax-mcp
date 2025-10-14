@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "chimerax": {
+      "command": "python",
+      "args": [
+        "C:\\Users\\jessi\\trying\\chimerax_mcp_server.py"
+      ],
+      "env": {}
+    }
+  }
+}

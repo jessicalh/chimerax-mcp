@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:www.cgl.ucsf.edu)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:127.0.0.1)",
+      "Bash(curl -s http://127.0.0.1:50960/cmdline.html)",
+      "WebFetch(domain:www.rbvi.ucsf.edu)",
+      "Bash(curl -s \"http://127.0.0.1:50960/run?command=version\")",
+      "Bash(curl -s \"http://127.0.0.1:50960/run?command=help\")",
+      "Bash(curl -s \"http://127.0.0.1:50960/run?command=usage+open\")",
+      "Bash(curl -s \"http://127.0.0.1:50960/run?command=info+commands\")",
+      "Bash(python:*)",
+      "Bash(dir:*)",
+      "Bash(pip install:*)",
+      "Bash(pyinstaller:*)",
+      "Bash(cat:*)",
+      "Bash(git init:*)",
+      "Bash(git config:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(timeout:*)",
+      "Bash(make:*)",
+      "Bash(cmd //c:*)",
+      "Bash(./build.bat clean)",
+      "Bash(./build.bat build)",
+      "Bash(test:*)",
+      "Bash(\"./build.bat\" installer)",
+      "Bash(curl -L \"https://jrsoftware.org/download.php/is.exe?site=2\" -o \"C:\\Users\\jessi\\trying\\innosetup-installer.exe\")",
+      "Bash(start innosetup-installer.exe)",
+      "Bash(./build.bat installer)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
