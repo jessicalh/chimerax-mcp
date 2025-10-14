@@ -142,7 +142,7 @@ end;
 procedure InitializeWizard();
 var
   ModePage: TInputOptionWizardPage;
-  ChimeraXPage: TInputQueryWizardPage;
+  PortPage: TInputQueryWizardPage;
 begin
   // Create custom page for installation mode selection
   ModePage := CreateInputOptionPage(wpLicense,
@@ -163,23 +163,15 @@ begin
   // Store for later use
   ModePage.Tag := 1; // Mark page as created
 
-  // Create ChimeraX configuration page
-  ChimeraXPage := CreateInputQueryPage(ModePage.ID,
-    'ChimeraX Configuration', 'Configure ChimeraX connection',
-    'The MCP server needs to know where ChimeraX is installed and which port to use.');
+  // Create port configuration page
+  PortPage := CreateInputQueryPage(ModePage.ID,
+    'ChimeraX Port Configuration', 'Configure ChimeraX REST server port',
+    'Enter the port number that ChimeraX uses for its REST server.' + #13#10 +
+    'Configure ChimeraX with: remotecontrol rest start port 5900');
 
-  ChimeraXPage.Add('ChimeraX executable path:', False);
-  ChimeraXPage.Add('REST server port:', False);
-
-  // Set defaults
-  if ChimeraXPath <> '' then
-    ChimeraXPage.Values[0] := ChimeraXPath
-  else
-    ChimeraXPage.Values[0] := 'C:\Program Files\ChimeraX\bin\ChimeraX.exe';
-
-  ChimeraXPage.Values[1] := ChimeraXPort;
-
-  ChimeraXPage.Tag := 2; // Mark page
+  PortPage.Add('REST server port:', False);
+  PortPage.Values[0] := ChimeraXPort;
+  PortPage.Tag := 2; // Mark page
 end;
 
 function GetDefaultInstallDir(Param: String): String;
@@ -243,24 +235,12 @@ begin
     end;
   end;
 
-  // Check if this is ChimeraX config page
+  // Check if this is port config page
   Page := PageFromID(CurPageID);
   if (Page <> nil) and (Page.Tag = 2) then
   begin
     QueryPage := TInputQueryWizardPage(Page);
-    ChimeraXPath := QueryPage.Values[0];
-    ChimeraXPort := QueryPage.Values[1];
-
-    // Validate ChimeraX path
-    if not FileExists(ChimeraXPath) then
-    begin
-      if MsgBox('ChimeraX executable not found at: ' + ChimeraXPath + #13#10 + #13#10 +
-                'Continue anyway? (You can configure it later)',
-                mbConfirmation, MB_YESNO) = IDNO then
-      begin
-        Result := False;
-      end;
-    end;
+    ChimeraXPort := QueryPage.Values[0];
   end;
 end;
 
