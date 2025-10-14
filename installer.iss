@@ -33,9 +33,9 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 
-; Privileges
-PrivilegesRequired=admin
-PrivilegesRequiredOverridesAllowed=dialog
+; Privileges - allow user to choose
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=commandline dialog
 
 ; Windows version
 MinVersion=10.0
@@ -73,6 +73,7 @@ Filename: "{app}\README.md"; Description: "View README"; \
 [Code]
 var
   PythonFound: Boolean;
+  InstallForAllUsers: Boolean;
 
 function InitializeSetup(): Boolean;
 var
@@ -86,7 +87,95 @@ begin
     PythonFound := True;
   end;
 
+  // Default to all users if running as admin, current user otherwise
+  InstallForAllUsers := IsAdmin;
+
   Result := True; // Continue installation even if Python not found
+end;
+
+procedure InitializeWizard();
+var
+  Page: TInputOptionWizardPage;
+begin
+  // Create custom page for installation mode selection
+  Page := CreateInputOptionPage(wpLicense,
+    'Installation Mode', 'Choose installation scope',
+    'Select whether to install for all users or just for you.',
+    False, False);
+
+  // Add options
+  Page.Add('Install for all users (requires administrator privileges)');
+  Page.Add('Install for current user only (no admin required)');
+
+  // Set default based on admin status
+  if IsAdmin then
+    Page.Values[0] := True
+  else
+    Page.Values[1] := True;
+
+  // Store for later use
+  Page.Tag := 1; // Mark page as created
+end;
+
+function GetDefaultInstallDir(Param: String): String;
+begin
+  if InstallForAllUsers then
+    Result := ExpandConstant('{autopf}\ChimeraX-MCP')
+  else
+    Result := ExpandConstant('{localappdata}\ChimeraX-MCP');
+end;
+
+function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo,
+  MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
+var
+  S: String;
+begin
+  S := '';
+
+  if InstallForAllUsers then
+    S := S + 'Installation Mode:' + NewLine + Space + 'All Users (requires admin)' + NewLine + NewLine
+  else
+    S := S + 'Installation Mode:' + NewLine + Space + 'Current User Only' + NewLine + NewLine;
+
+  S := S + MemoDirInfo + NewLine + NewLine;
+
+  Result := S;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  Page: TWizardPage;
+  InputPage: TInputOptionWizardPage;
+begin
+  Result := True;
+
+  // Check if this is our custom page
+  if CurPageID = wpLicense + 1 then
+  begin
+    Page := PageFromID(CurPageID);
+    if (Page <> nil) and (Page.Tag = 1) then
+    begin
+      InputPage := TInputOptionWizardPage(Page);
+      InstallForAllUsers := InputPage.Values[0];
+
+      // Update installation directory based on selection
+      if InstallForAllUsers then
+      begin
+        WizardForm.DirEdit.Text := ExpandConstant('{autopf}\ChimeraX-MCP');
+        if not IsAdmin then
+        begin
+          MsgBox('Installing for all users requires administrator privileges. ' +
+                 'Please run the installer as administrator or choose "Current user only".',
+                 mbError, MB_OK);
+          Result := False;
+        end;
+      end
+      else
+      begin
+        WizardForm.DirEdit.Text := ExpandConstant('{localappdata}\ChimeraX-MCP');
+      end;
+    end;
+  end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
