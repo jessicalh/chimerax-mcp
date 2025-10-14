@@ -19,8 +19,6 @@ Prerequisites:
 import requests
 import os
 import json
-import subprocess
-import time
 from typing import Optional, Dict, Any
 from urllib.parse import quote
 from mcp.server.fastmcp import FastMCP
@@ -31,7 +29,6 @@ mcp = FastMCP("ChimeraX")
 
 # ChimeraX REST API configuration
 CHIMERAX_URL = None  # Will be loaded from config
-CHIMERAX_PROCESS = None  # Will hold ChimeraX process if we start it
 
 
 def load_config() -> Dict[str, Any]:
@@ -40,7 +37,7 @@ def load_config() -> Dict[str, Any]:
     Looks for config file in same directory as executable.
 
     Returns:
-        Configuration dictionary
+        Configuration dictionary with port number
     """
     # Find config file - look in same directory as this script/executable
     if getattr(sys, 'frozen', False):
@@ -53,137 +50,23 @@ def load_config() -> Dict[str, Any]:
     config_file = app_dir / "chimerax_mcp_config.json"
 
     # Default configuration
-    default_config = {
-        "chimerax_url": "http://127.0.0.1:50960",
-        "chimerax_port": 50960,
-        "timeout": 30,
-        "auto_start_chimerax": True,
-        "chimerax_path": ""
-    }
+    default_port = 5900
 
     # Try to load from file
     if config_file.exists():
         try:
             with open(config_file, 'r') as f:
                 config = json.load(f)
-                return {**default_config, **config}  # Merge with defaults
-        except Exception as e:
-            print(f"Warning: Could not load config file: {e}", file=sys.stderr)
+                return {"port": config.get("port", default_port)}
+        except Exception:
+            pass
 
-    return default_config
-
-
-def find_chimerax_executable() -> Optional[Path]:
-    """
-    Find ChimeraX executable in common installation locations.
-
-    Returns:
-        Path to ChimeraX.exe or None
-    """
-    # Check common installation paths
-    common_paths = [
-        Path("C:/Program Files/ChimeraX/bin/ChimeraX.exe"),
-        Path("C:/Program Files (x86)/ChimeraX/bin/ChimeraX.exe"),
-        Path(os.path.expandvars("%LOCALAPPDATA%/UCSF ChimeraX/bin/ChimeraX.exe")),
-        Path("C:/Program Files/UCSF ChimeraX/bin/ChimeraX.exe"),
-    ]
-
-    for path in common_paths:
-        if path.exists():
-            return path
-
-    return None
-
-
-def start_chimerax(port: int = 50960, chimerax_path: Optional[str] = None) -> Optional[subprocess.Popen]:
-    """
-    Start ChimeraX with REST server enabled on specified port.
-
-    Args:
-        port: Port for REST server
-        chimerax_path: Optional path to ChimeraX executable
-
-    Returns:
-        Process object or None if failed
-    """
-    global CHIMERAX_PROCESS
-
-    # Find ChimeraX executable
-    if chimerax_path:
-        exe_path = Path(chimerax_path)
-    else:
-        exe_path = find_chimerax_executable()
-
-    if not exe_path or not exe_path.exists():
-        print(f"Warning: ChimeraX not found. Please start it manually with: remotecontrol rest start port {port}", file=sys.stderr)
-        return None
-
-    try:
-        # Start ChimeraX with REST server
-        cmd = [str(exe_path), "--cmd", f"remotecontrol rest start port {port}"]
-        CHIMERAX_PROCESS = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
-        )
-
-        # Wait for server to start (max 10 seconds)
-        url = f"http://127.0.0.1:{port}"
-        for i in range(50):  # 50 attempts * 200ms = 10 seconds
-            time.sleep(0.2)
-            try:
-                response = requests.get(f"{url}/run?command=version", timeout=0.5)
-                if response.status_code == 200 and "ChimeraX" in response.text:
-                    print(f"ChimeraX started successfully on port {port}", file=sys.stderr)
-                    return CHIMERAX_PROCESS
-            except requests.RequestException:
-                pass
-
-        print(f"Warning: ChimeraX started but REST server not responding on port {port}", file=sys.stderr)
-        return CHIMERAX_PROCESS
-
-    except Exception as e:
-        print(f"Error starting ChimeraX: {e}", file=sys.stderr)
-        return None
-
-
-def ensure_chimerax_running() -> bool:
-    """
-    Ensure ChimeraX is running with REST server.
-    Starts it if needed and configured to do so.
-
-    Returns:
-        True if ChimeraX is accessible
-    """
-    global CHIMERAX_URL
-
-    # Check if already connected
-    try:
-        response = requests.get(f"{CHIMERAX_URL}/run?command=version", timeout=1)
-        if response.status_code == 200:
-            return True
-    except requests.RequestException:
-        pass
-
-    # Try to start ChimeraX if configured to do so
-    config = load_config()
-    if config.get("auto_start_chimerax", True):
-        port = config.get("chimerax_port", 50960)
-        chimerax_path = config.get("chimerax_path", "")
-
-        print(f"Starting ChimeraX on port {port}...", file=sys.stderr)
-        process = start_chimerax(port, chimerax_path if chimerax_path else None)
-
-        if process:
-            return True
-
-    return False
+    return {"port": default_port}
 
 
 def get_chimerax_url() -> str:
     """
-    Get ChimeraX URL from environment, config file, or default.
+    Get ChimeraX URL from environment or config file.
 
     Returns:
         ChimeraX REST API URL
@@ -195,7 +78,8 @@ def get_chimerax_url() -> str:
 
     # 2. Configuration file
     config = load_config()
-    return config.get("chimerax_url", "http://127.0.0.1:50960")
+    port = config.get("port", 5900)
+    return f"http://127.0.0.1:{port}"
 
 
 # Import sys for executable path detection
@@ -203,9 +87,6 @@ import sys
 
 # Load ChimeraX URL from config
 CHIMERAX_URL = get_chimerax_url()
-
-# Try to ensure ChimeraX is running on startup
-ensure_chimerax_running()
 
 
 class ChimeraXError(Exception):
@@ -748,13 +629,4 @@ def get_alphafold_info(uniprot_id: str) -> str:
 
 if __name__ == "__main__":
     # Run the MCP server
-    try:
-        mcp.run()
-    finally:
-        # Clean up ChimeraX process if we started it
-        if CHIMERAX_PROCESS:
-            try:
-                CHIMERAX_PROCESS.terminate()
-                CHIMERAX_PROCESS.wait(timeout=5)
-            except:
-                pass
+    mcp.run()

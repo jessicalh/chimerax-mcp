@@ -134,7 +134,7 @@ begin
 
   // Find ChimeraX
   ChimeraXPath := FindChimeraX();
-  ChimeraXPort := '50960';  // Default port
+  ChimeraXPort := '5900';  // Default port
 
   Result := True; // Continue installation even if Python not found
 end;
@@ -277,13 +277,9 @@ begin
     // Update the chimerax_mcp_config.json with actual ChimeraX path and port
     ConfigFile := ExpandConstant('{app}\chimerax_mcp_config.json');
 
-    // Escape backslashes for JSON
+    // Write simple config with just the port
     ConfigContent := '{' + #13#10 +
-      '  "chimerax_url": "http://127.0.0.1:' + ChimeraXPort + '",' + #13#10 +
-      '  "chimerax_port": ' + ChimeraXPort + ',' + #13#10 +
-      '  "timeout": 30,' + #13#10 +
-      '  "auto_start_chimerax": true,' + #13#10 +
-      '  "chimerax_path": "' + EscapeBackslashes(ChimeraXPath) + '"' + #13#10 +
+      '  "port": ' + ChimeraXPort + #13#10 +
       '}' + #13#10;
 
     SaveStringToFile(ConfigFile, ConfigContent, False);

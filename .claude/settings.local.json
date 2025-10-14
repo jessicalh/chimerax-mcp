@@ -32,7 +32,10 @@
       "Bash(\"./build.bat\" installer)",
       "Bash(curl -L \"https://jrsoftware.org/download.php/is.exe?site=2\" -o \"C:\\Users\\jessi\\trying\\innosetup-installer.exe\")",
       "Bash(start innosetup-installer.exe)",
-      "Bash(./build.bat installer)"
+      "Bash(./build.bat installer)",
+      "Bash(start Output/chimerax-mcp-setup.exe)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/jessi/AppData/**)"
     ],
     "deny": [],
     "ask": []

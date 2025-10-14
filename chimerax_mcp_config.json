@@ -1,7 +1,3 @@
 {
-  "chimerax_url": "http://127.0.0.1:50960",
-  "chimerax_port": 50960,
-  "timeout": 30,
-  "auto_start_chimerax": true,
-  "chimerax_path": ""
+  "port": 5900
 }
