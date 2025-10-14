@@ -47,6 +47,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 ; Main executable
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
+; Configuration file
+Source: "chimerax_mcp_config.json"; DestDir: "{app}"; Flags: ignoreversion confirmoverwrite
+
 ; Documentation
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "QUICKSTART.md"; DestDir: "{app}"; Flags: ignoreversion

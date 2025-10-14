@@ -18,102 +18,78 @@ Prerequisites:
 
 import requests
 import os
+import json
 from typing import Optional, Dict, Any
 from urllib.parse import quote
 from mcp.server.fastmcp import FastMCP
-import socket
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 # Initialize MCP server
 mcp = FastMCP("ChimeraX")
 
 # ChimeraX REST API configuration
-CHIMERAX_URL = None  # Will be auto-detected
+CHIMERAX_URL = None  # Will be loaded from config
 
 
-def find_chimerax_port() -> Optional[str]:
+def load_config() -> Dict[str, Any]:
     """
-    Auto-detect ChimeraX REST API port by scanning localhost.
+    Load configuration from config file.
+    Looks for config file in same directory as executable.
 
     Returns:
-        URL string like "http://127.0.0.1:50960" or None if not found
+        Configuration dictionary
     """
-    # First check environment variable override
+    # Find config file - look in same directory as this script/executable
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable
+        app_dir = Path(sys.executable).parent
+    else:
+        # Running as script
+        app_dir = Path(__file__).parent
+
+    config_file = app_dir / "chimerax_mcp_config.json"
+
+    # Default configuration
+    default_config = {
+        "chimerax_url": "http://127.0.0.1:50960",
+        "timeout": 30,
+        "auto_detect_port": False
+    }
+
+    # Try to load from file
+    if config_file.exists():
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+                return {**default_config, **config}  # Merge with defaults
+        except Exception as e:
+            print(f"Warning: Could not load config file: {e}", file=sys.stderr)
+
+    return default_config
+
+
+def get_chimerax_url() -> str:
+    """
+    Get ChimeraX URL from environment, config file, or default.
+
+    Returns:
+        ChimeraX REST API URL
+    """
+    # 1. Environment variable override (highest priority)
     env_url = os.getenv("CHIMERAX_URL")
     if env_url:
         return env_url
 
-    # Try default port first (fast path - 99% of cases)
-    default_port = 50960
-    if check_chimerax_port(default_port):
-        return f"http://127.0.0.1:{default_port}"
-
-    # If not on default, try common nearby ports
-    # ChimeraX typically uses ports in this range
-    common_ports = [50961, 50962, 50959, 50958, 49152, 49153, 49154]
-
-    for port in common_ports:
-        if check_chimerax_port(port):
-            return f"http://127.0.0.1:{port}"
-
-    # Last resort: do a limited parallel scan
-    # Only scan a small range to avoid long delays
-    port_range = list(range(50963, 51000))
-
-    batch_size = 5
-    for i in range(0, len(port_range), batch_size):
-        batch = port_range[i:i+batch_size]
-        with ThreadPoolExecutor(max_workers=batch_size) as executor:
-            futures = {executor.submit(check_chimerax_port, port): port for port in batch}
-            for future in as_completed(futures):
-                port = futures[future]
-                if future.result():
-                    return f"http://127.0.0.1:{port}"
-
-    return None
+    # 2. Configuration file
+    config = load_config()
+    return config.get("chimerax_url", "http://127.0.0.1:50960")
 
 
-def check_chimerax_port(port: int, timeout: float = 0.05) -> bool:
-    """
-    Check if ChimeraX REST server is running on given port.
+# Import sys for executable path detection
+import sys
 
-    Args:
-        port: Port number to check
-        timeout: Connection timeout in seconds
-
-    Returns:
-        True if ChimeraX is responding on this port
-    """
-    try:
-        # First check if port is open
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        result = sock.connect_ex(('127.0.0.1', port))
-        sock.close()
-
-        if result != 0:
-            return False
-
-        # Port is open, verify it's ChimeraX by sending version command
-        url = f"http://127.0.0.1:{port}/run?command=version"
-        response = requests.get(url, timeout=timeout)
-
-        # Check if response contains ChimeraX signature
-        if response.status_code == 200 and "ChimeraX" in response.text:
-            return True
-
-    except (socket.error, requests.RequestException):
-        pass
-
-    return False
-
-
-# Auto-detect ChimeraX port on startup
-CHIMERAX_URL = find_chimerax_port()
-
-if CHIMERAX_URL is None:
-    # Will fail gracefully on first command with helpful error message
-    CHIMERAX_URL = "http://127.0.0.1:50960"  # Fallback for error messages
+# Load ChimeraX URL from config
+CHIMERAX_URL = get_chimerax_url()
 
 
 class ChimeraXError(Exception):
