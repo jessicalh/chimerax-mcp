@@ -17,15 +17,96 @@ Prerequisites:
 """
 
 import requests
+import os
 from typing import Optional, Dict, Any
 from urllib.parse import quote
 from mcp.server.fastmcp import FastMCP
+import socket
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Initialize MCP server
 mcp = FastMCP("ChimeraX")
 
 # ChimeraX REST API configuration
-CHIMERAX_URL = "http://127.0.0.1:50960"
+CHIMERAX_URL = None  # Will be auto-detected
+
+
+def find_chimerax_port() -> Optional[str]:
+    """
+    Auto-detect ChimeraX REST API port by scanning localhost.
+
+    Returns:
+        URL string like "http://127.0.0.1:50960" or None if not found
+    """
+    # First check environment variable override
+    env_url = os.getenv("CHIMERAX_URL")
+    if env_url:
+        return env_url
+
+    # Ports to check (default first, then common range)
+    default_port = 50960
+    port_range = list(range(49152, 50000)) + list(range(50960, 51500))
+
+    # Try default port first (fast path)
+    if check_chimerax_port(default_port):
+        return f"http://127.0.0.1:{default_port}"
+
+    # Scan other ports in parallel for speed
+    # Check 10 ports at a time
+    batch_size = 10
+    for i in range(0, len(port_range), batch_size):
+        batch = port_range[i:i+batch_size]
+        with ThreadPoolExecutor(max_workers=batch_size) as executor:
+            futures = {executor.submit(check_chimerax_port, port): port for port in batch}
+            for future in as_completed(futures):
+                port = futures[future]
+                if future.result():
+                    return f"http://127.0.0.1:{port}"
+
+    return None
+
+
+def check_chimerax_port(port: int, timeout: float = 0.1) -> bool:
+    """
+    Check if ChimeraX REST server is running on given port.
+
+    Args:
+        port: Port number to check
+        timeout: Connection timeout in seconds
+
+    Returns:
+        True if ChimeraX is responding on this port
+    """
+    try:
+        # First check if port is open
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex(('127.0.0.1', port))
+        sock.close()
+
+        if result != 0:
+            return False
+
+        # Port is open, verify it's ChimeraX by sending version command
+        url = f"http://127.0.0.1:{port}/run?command=version"
+        response = requests.get(url, timeout=timeout)
+
+        # Check if response contains ChimeraX signature
+        if response.status_code == 200 and "ChimeraX" in response.text:
+            return True
+
+    except (socket.error, requests.RequestException):
+        pass
+
+    return False
+
+
+# Auto-detect ChimeraX port on startup
+CHIMERAX_URL = find_chimerax_port()
+
+if CHIMERAX_URL is None:
+    # Will fail gracefully on first command with helpful error message
+    CHIMERAX_URL = "http://127.0.0.1:50960"  # Fallback for error messages
 
 
 class ChimeraXError(Exception):

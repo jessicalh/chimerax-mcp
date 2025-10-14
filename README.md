@@ -13,6 +13,7 @@ ChimeraX is powerful but has a learning curve. AI assistants like Claude are gre
 ## Features
 
 - **15 specialized tools** for molecular visualization and analysis
+- **Automatic port detection** - finds ChimeraX automatically, no configuration needed
 - **No Python required** on deployment machines (standalone executable available)
 - **Direct integration** with ChimeraX REST API
 - **Works with Claude Desktop** via the Model Context Protocol
@@ -181,7 +182,21 @@ In ChimeraX command line:
 remotecontrol rest start
 ```
 
-Default port: 50960. If using a different port, edit `CHIMERAX_URL` in the source before building.
+The server **automatically detects** which port ChimeraX is using (typically 50960). No manual configuration needed!
+
+You can also override with environment variable:
+```json
+{
+  "mcpServers": {
+    "chimerax": {
+      "command": "path/to/chimerax-mcp-server.exe",
+      "env": {
+        "CHIMERAX_URL": "http://127.0.0.1:YOUR_PORT"
+      }
+    }
+  }
+}
+```
 
 ### Claude Desktop Setup
 
