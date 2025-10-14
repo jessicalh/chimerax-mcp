@@ -43,17 +43,24 @@ def find_chimerax_port() -> Optional[str]:
     if env_url:
         return env_url
 
-    # Ports to check (default first, then common range)
+    # Try default port first (fast path - 99% of cases)
     default_port = 50960
-    port_range = list(range(49152, 50000)) + list(range(50960, 51500))
-
-    # Try default port first (fast path)
     if check_chimerax_port(default_port):
         return f"http://127.0.0.1:{default_port}"
 
-    # Scan other ports in parallel for speed
-    # Check 10 ports at a time
-    batch_size = 10
+    # If not on default, try common nearby ports
+    # ChimeraX typically uses ports in this range
+    common_ports = [50961, 50962, 50959, 50958, 49152, 49153, 49154]
+
+    for port in common_ports:
+        if check_chimerax_port(port):
+            return f"http://127.0.0.1:{port}"
+
+    # Last resort: do a limited parallel scan
+    # Only scan a small range to avoid long delays
+    port_range = list(range(50963, 51000))
+
+    batch_size = 5
     for i in range(0, len(port_range), batch_size):
         batch = port_range[i:i+batch_size]
         with ThreadPoolExecutor(max_workers=batch_size) as executor:
@@ -66,7 +73,7 @@ def find_chimerax_port() -> Optional[str]:
     return None
 
 
-def check_chimerax_port(port: int, timeout: float = 0.1) -> bool:
+def check_chimerax_port(port: int, timeout: float = 0.05) -> bool:
     """
     Check if ChimeraX REST server is running on given port.
 
